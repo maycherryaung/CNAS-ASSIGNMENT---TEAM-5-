@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cnas-app-config
+  labels:
+    app.kubernetes.io/name: cnas-app-config
+data:
+  DB_HOST: cnas-mysql
+  DB_PORT: "3306"
+  DB_NAME: mydb
+  APP_ENV: production
+

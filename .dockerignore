@@ -1,0 +1,17 @@
+.git
+.github
+.codex
+.agents
+docs
+k8s
+monitoring
+scripts
+tests
+*.md
+Jenkinsfile
+Makefile
+docker-compose.yml
+kind-config.yaml
+CNAS 2026 Assignment.docx
+~$*
+

@@ -1,0 +1,33 @@
+grafana:
+  adminPassword: TODO_CHANGE_ME_LOCAL_DEMO_ONLY
+  defaultDashboardsEnabled: true
+  service:
+    type: ClusterIP
+
+prometheus:
+  prometheusSpec:
+    retention: 7d
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
+
+alertmanager:
+  alertmanagerSpec:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 300m
+        memory: 256Mi
+
+kube-state-metrics:
+  enabled: true
+
+nodeExporter:
+  enabled: true
+
