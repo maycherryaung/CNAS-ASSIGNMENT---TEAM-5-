@@ -7,10 +7,13 @@
 **Module:** Cloud Native Application and Security  
 **Academic Year/Semester:** 2026/27 Semester 5  
 **Assignment:** CNAS Assignment  
-**Class:** TODO_T01_OR_T02  
-**Team:** TODO_TEAM_NUMBER  
-**Members:** TODO_MEMBER_NAMES_AND_STUDENT_NUMBERS  
-**Submission Date:** TODO_SUBMISSION_DATE  
+**Class:** T01
+**Team:** TEAM_5  
+**Members:** May Cherry Aung
+             Aw Ming Jie
+             Abin Aneesh
+             Gandhimathi Murugavel Dhushyanth  
+
 
 > **Screenshot placeholder S00:** Final application home page showing the class, team number, and member names after placeholders are updated.
 

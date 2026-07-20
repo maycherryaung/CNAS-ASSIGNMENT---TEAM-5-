@@ -10,9 +10,10 @@ CREATE TABLE IF NOT EXISTS users (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO users (name, email) VALUES
-    ('TODO_MEMBER_NAME_1', 'member1@example.edu'),
-    ('TODO_MEMBER_NAME_2', 'member2@example.edu'),
-    ('TODO_MEMBER_NAME_3', 'member3@example.edu')
+    ('Abin Aneesh', 'abinaneesh21@example.edu'),
+    ('Aw Ming Jie', 'awmingjie42@example.edu'),
+    ('May Cherry Aung', 'maycherryaung78@example.edu')
+    ('Gandhimathi Murugavel Dhushyanth', 'gmdhushyanth9@example.edu')
 ON DUPLICATE KEY UPDATE
     name = VALUES(name);
 
