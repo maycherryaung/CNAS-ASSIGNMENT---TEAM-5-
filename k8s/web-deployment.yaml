@@ -25,20 +25,9 @@ spec:
         runAsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
-      affinity:
-        podAntiAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-            - weight: 100
-              podAffinityTerm:
-                labelSelector:
-                  matchLabels:
-                    app.kubernetes.io/name: cnas-web
-                    app.kubernetes.io/component: web
-                topologyKey: kubernetes.io/hostname
       containers:
         - name: web
-          image: cnas-php-mysql:local
-          imagePullPolicy: IfNotPresent
+          image: maycherryaung98/cnas-php-mysql:latest
           ports:
             - name: http
               containerPort: 8080
@@ -97,4 +86,3 @@ spec:
             capabilities:
               drop:
                 - ALL
-
