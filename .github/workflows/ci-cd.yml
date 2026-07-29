@@ -82,7 +82,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Prepare lowercase image name
-        run: echo "IMAGE_REF=${REGISTRY}/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+        run: echo "IMAGE_REF=${REGISTRY}/${GITHUB_REPOSITORY_OWNER,,}/cnas-php-mysql" >> "$GITHUB_ENV"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -113,7 +113,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Prepare lowercase image name
-        run: echo "IMAGE_REF=${REGISTRY}/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+        run: echo "IMAGE_REF=${REGISTRY}/${GITHUB_REPOSITORY_OWNER,,}/cnas-php-mysql" >> "$GITHUB_ENV"
 
       - name: Set up kubectl
         uses: azure/setup-kubectl@v4
