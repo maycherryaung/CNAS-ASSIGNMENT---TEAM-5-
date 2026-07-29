@@ -121,12 +121,10 @@ jobs:
       - name: Configure kubeconfig from secret
         run: |
           mkdir -p "${HOME}/.kube"
-          echo "${{ secrets.KUBE_CONFIG_DATA }}" | base64 -d > "${HOME}/.kube/config"
-          chmod 600 "${HOME}/.kube/config"
+          echo "${{ secrets.KUBE_CONFIG_DATA }}" | base64 -d -i > "${HOME}/.kube/config"
+          chmod 600 "${HOME}/.kube/config"        
 
-      - name: Apply manifests with release image
+      - name: Deploy release image
         run: |
-          kubectl kustomize k8s > rendered-k8s.yaml
-          sed -i "s#image: cnas-php-mysql:local#image: ${IMAGE_REF}:${GITHUB_SHA}#" rendered-k8s.yaml
-          kubectl apply -f rendered-k8s.yaml
+          kubectl -n cnas set image deployment/cnas-web web="${IMAGE_REF}:${GITHUB_SHA}"
           kubectl -n cnas rollout status deployment/cnas-web --timeout=180s
