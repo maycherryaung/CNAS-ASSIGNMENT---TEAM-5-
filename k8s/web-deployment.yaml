@@ -37,7 +37,8 @@ spec:
                 topologyKey: kubernetes.io/hostname
       containers:
         - name: web
-          image: maycherryaung98/cnas-php-mysql:latest
+          image: maycherryaung98/cnas-php-mysql:v2
+          imagePullPolicy: IfNotPresent
           ports:
             - name: http
               containerPort: 8080
@@ -96,3 +97,4 @@ spec:
             capabilities:
               drop:
                 - ALL
+

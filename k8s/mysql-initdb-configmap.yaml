@@ -18,10 +18,9 @@ data:
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
     INSERT INTO users (name, email) VALUES
-        ('May Cherry Aung', 'maycherryaung@connect.np.edu.sg'),
-        ('Aw Ming Jie', 'awmingjie@connect.np.edu.sg'),
-        ('Abin Aneesh', 'abinaneesh@connect.np.edu.sg'),
-        ('Gandhimathi Murugavel Dhushyanth', 'gandhimathimurugaveldhushyanth@connect.np.edu.sg')
+        ('TODO_MEMBER_NAME_1', 'member1@example.edu'),
+        ('TODO_MEMBER_NAME_2', 'member2@example.edu'),
+        ('TODO_MEMBER_NAME_3', 'member3@example.edu')
     ON DUPLICATE KEY UPDATE
         name = VALUES(name);
 
