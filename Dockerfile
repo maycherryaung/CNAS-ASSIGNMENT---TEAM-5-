@@ -1,4 +1,5 @@
 FROM php:8.3-apache
+RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
 
 RUN set -eux; \
     docker-php-ext-install mysqli pdo_mysql; \
