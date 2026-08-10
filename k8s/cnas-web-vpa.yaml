@@ -1,0 +1,33 @@
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: cnas-web-vpa
+  namespace: cnas
+  labels:
+    app.kubernetes.io/name: cnas-web
+    app.kubernetes.io/component: web
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: cnas-web
+
+  updatePolicy:
+    updateMode: "Recreate"
+
+  resourcePolicy:
+    containerPolicies:
+      - containerName: web
+
+        # VPA controls memory only.
+        controlledResources:
+          - memory
+
+        # Change the request but keep the 256Mi limit fixed.
+        controlledValues: RequestsOnly
+
+        minAllowed:
+          memory: 128Mi
+
+        maxAllowed:
+          memory: 192Mi

@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: cnas-web
+  namespace: cnas
   labels:
     app.kubernetes.io/name: cnas-web
     app.kubernetes.io/component: web
@@ -37,7 +38,7 @@ spec:
                 topologyKey: kubernetes.io/hostname
       containers:
         - name: web
-          image: maycherryaung98/cnas-php-mysql:v2
+          image: maycherryaung98/cnas-php-mysql@sha256:1e460c60ed0029c8a42301e39a8c069f4e965665a2496cfb6bc3e6261bf52208
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

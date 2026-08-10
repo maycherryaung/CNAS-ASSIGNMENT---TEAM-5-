@@ -6,12 +6,20 @@ metadata:
     app.kubernetes.io/name: cnas-mysql
     app.kubernetes.io/component: database
 spec:
-  type: ClusterIP
-  selector:
+  type: ClusterIP                         #completely internal(clusters in kubernetes), not accessible from outside internet (mandatory security practice for databases)
+  selector:                               #select database containers to connect network traffic to 
     app.kubernetes.io/name: cnas-mysql
     app.kubernetes.io/component: database
   ports:
     - name: mysql
-      port: 3306
-      targetPort: mysql
+      port: 3306            #Number 3306 is the standard, globally recognized port number for MySQL databases.
+      targetPort: mysql     #forward data to actual database container
 
+
+
+#This code creates a configuration file for a Kubernetes Service.
+
+#In Cloud Native architecture, the containers running your applications and 
+#databases are temporary. They can be destroyed and recreated at any time, which 
+#means their specific network IP addresses change constantly. A Service solves 
+#this problem by creating a permanent, fixed network address for those temporary #containers.

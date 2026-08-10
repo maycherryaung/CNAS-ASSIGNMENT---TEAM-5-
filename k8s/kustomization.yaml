@@ -1,23 +1,35 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
+kind: Kustomization   #use Kustomize tool (the master tool)
 
 namespace: cnas
 
 commonLabels:
-  app.kubernetes.io/part-of: cnas-assignment
+  app.kubernetes.io/part-of: cnas-assignment #take the label app.kubernetes.io/part-of: cnas-assignment 
+                                            #and automatically attach it to every single resource created by this file.
 
-resources:
+resources:                          #all the files needed for the app
+    
+    #core config files
   - namespace.yaml
   - configmap.yaml
   - secret-template.yaml
+
+    #stateful data
   - local-storage.yaml
   - mysql-initdb-configmap.yaml
   - mysql-service.yaml
   - mysql-statefulset.yaml
+
+    #stateless app
   - web-serviceaccount.yaml
   - web-deployment.yaml
   - web-service.yaml
+
+    #networking & scaling 
   - ingress.yaml
   - hpa.yaml
   - pdb.yaml
+  - cnas-web-vpa.yaml
+
+    #security
   - networkpolicy.yaml

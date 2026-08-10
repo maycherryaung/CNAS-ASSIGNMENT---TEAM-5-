@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-mysql-ingress-from-web
+  namespace: cnas
+  labels:
+    app.kubernetes.io/name: allow-mysql-ingress-from-web
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: cnas-mysql
+      app.kubernetes.io/component: database
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: cnas-web
+              app.kubernetes.io/component: web
+      ports:
+        - protocol: TCP
+          port: 3306
