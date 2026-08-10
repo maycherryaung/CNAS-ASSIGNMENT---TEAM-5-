@@ -15,3 +15,29 @@ data:
 This file creates a Kubernetes resource called a ConfigMap.
 
 In Cloud Native architecture, a fundamental rule is to separate your configuration settings from your actual application code. The purpose of this file is to store these non-secret configuration settings (like database names and environment states) in one central place. By keeping these settings separate, you can run the exact same application code in different environments (like a testing server or a live production server) simply by changing this configuration file, without ever modifying the code itself.*/
+
+
+/* The MySQL pod (from mysql-statefulset.yaml).
+
+Let me trace it:
+
+1. You apply kustomization.yaml.
+2. It applies mysql-statefulset.yaml.
+3. StatefulSet says "create 1 MySQL pod."
+4. MySQL pod starts and needs storage.
+5. Pod says: "I need storage type cnas-local-storage" (line 107 of mysql-statefulset.yaml).
+6. Kubernetes sees: "Pod needs storage."
+7. Now WaitForFirstConsumer kicks in:
+  - Kubernetes reads the PersistentVolume spec.
+  - PV says: "I'm on vm-childnode1" (line 31).
+  - Kubernetes decides: "Pod must start on vm-childnode1 (where storage is)."
+  - Schedules pod there.
+rage to that pod.
+
+Without WaitForFirstConsumer:
+ on vm-childnode2.
+- They're separate. Doesn't work.
+Consumer:
+- Pod says "I need storage."
+n the same node.
+- Guaranteed together. */

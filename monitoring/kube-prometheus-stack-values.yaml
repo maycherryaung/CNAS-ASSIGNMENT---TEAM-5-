@@ -1,33 +1,51 @@
+# Grafana = visualization tool (dashboard to see metrics as charts)
 grafana:
-  adminPassword: TODO_CHANGE_ME_LOCAL_DEMO_ONLY
-  defaultDashboardsEnabled: true
+  adminPassword: TODO_CHANGE_ME_LOCAL_DEMO_ONLY  # Change this before production!
+  defaultDashboardsEnabled: true  # Load pre-made dashboards
   service:
-    type: ClusterIP
+    type: ClusterIP  # Only accessible inside cluster (not from outside)
 
+# Prometheus = metrics collection and storage (gathers data from all pods/nodes)
 prometheus:
   prometheusSpec:
-    retention: 7d
+    retention: 7d  # Keep metrics for 7 days, then delete old data
     resources:
       requests:
+        # Reserve this much resources for Prometheus
         cpu: 250m
         memory: 512Mi
       limits:
+        # Prometheus can't use more than this
         cpu: "1"
         memory: 1Gi
 
+# AlertManager = sends alerts/notifications when problems happen (CPU high, pods crashing, etc.)
 alertmanager:
   alertmanagerSpec:
     resources:
       requests:
+        # Reserve this much resources for AlertManager
         cpu: 100m
         memory: 128Mi
       limits:
+        # AlertManager can't use more than this
         cpu: 300m
         memory: 256Mi
 
+# kube-state-metrics = collect metrics about Kubernetes objects (pods, deployments, services, etc.)
 kube-state-metrics:
   enabled: true
 
+# nodeExporter = collect metrics about nodes/machines (CPU, memory, disk, network usage)
 nodeExporter:
   enabled: true
+
+# Summary:
+# This file configures the entire monitoring stack:
+# 1. Prometheus - collects metrics from all pods and nodes
+# 2. Grafana - displays metrics as dashboards/charts
+# 3. AlertManager - sends alerts when problems happen
+# 4. kube-state-metrics - metrics about Kubernetes objects
+# 5. nodeExporter - metrics about machines
+# Everything needed to monitor the cluster and app.
 
