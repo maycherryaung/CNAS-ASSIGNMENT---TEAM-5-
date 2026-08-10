@@ -3,33 +3,44 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/db.php';
 
+// Defaults for the form fields and validation error messages.
+// $name/$email get re-used to refill the form if validation fails.
 $name = '';
 $email = '';
 $errors = [];
 
+// Only run the validation/insert logic when the form has been submitted (POST).
+// A plain GET request just shows the empty form below.
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Read the submitted values, defaulting to '' if missing, and trim whitespace.
     $name = trim((string) ($_POST['name'] ?? ''));
     $email = trim((string) ($_POST['email'] ?? ''));
 
+    // Validate name: required, max 100 chars (matches the DB column limit).
     if ($name === '' || strlen($name) > 100) {
         $errors[] = 'Name is required and must be 100 characters or fewer.';
     }
 
+    // Validate email: must be a real email format and max 191 chars (matches the DB column limit).
     if (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 191) {
         $errors[] = 'Enter a valid email address of 191 characters or fewer.';
     }
 
+    // Only attempt the insert if both fields passed validation.
     if ($errors === []) {
         $conn = db();
 
         try {
+            // Prepared statement with bound params ('ss' = two strings) protects against SQL injection.
             $stmt = $conn->prepare('INSERT INTO users (name, email) VALUES (?, ?)');
             $stmt->bind_param('ss', $name, $email);
             $stmt->execute();
             $stmt->close();
+            // Success: redirect back to the list page (prevents duplicate submits on refresh).
             header('Location: index.php');
             exit();
         } catch (mysqli_sql_exception $exception) {
+            // Most likely cause: duplicate email (UNIQUE constraint). Log details, show a generic message.
             error_log('Create member failed: ' . $exception->getMessage());
             $errors[] = 'Unable to create the member. Check whether the email already exists.';
         }
@@ -49,6 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <section class="panel">
         <h1>Create New Team Member</h1>
 
+        <!-- Show any validation/DB errors from the POST handling above -->
         <?php if ($errors !== []): ?>
             <div class="alert" role="alert">
                 <?php foreach ($errors as $error): ?>
@@ -57,6 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
         <?php endif; ?>
 
+        <!-- Submits back to this same page (POST); values are re-filled with e() to escape output safely -->
         <form method="post" novalidate>
             <label for="name">Member Name</label>
             <input id="name" name="name" value="<?= e($name) ?>" maxlength="100" required>
