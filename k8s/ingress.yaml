@@ -12,7 +12,7 @@ metadata:
     nginx.ingress.kubernetes.io/limit-rps: "10"       #10 requests per second
     nginx.ingress.kubernetes.io/proxy-read-timeout: "30"    #takes longer than 30 seconds to respond > cut connection > save server memory
     nginx.ingress.kubernetes.io/proxy-send-timeout: "30"
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"        #redirect to HTTPS
 spec:
   ingressClassName: nginx
   tls:

@@ -1,5 +1,6 @@
 apiVersion: apps/v1
 kind: Deployment
+# Deployment = for stateless apps (web servers, APIs). Copies can be replaced anytime.
 metadata:
   name: cnas-web
   namespace: cnas
@@ -7,7 +8,7 @@ metadata:
     app.kubernetes.io/name: cnas-web
     app.kubernetes.io/component: web
 spec:
-  replicas: 3
+  replicas: 3  # Start with 3 copies. HPA will scale from 3 to 6 based on CPU usage.
   selector:
     matchLabels:
       app.kubernetes.io/name: cnas-web
@@ -27,75 +28,83 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       affinity:
+        # Try to spread pods across different nodes (redundancy)
         podAntiAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
+          preferredDuringSchedulingIgnoredDuringExecution:  # Prefer but don't require
             - weight: 100
               podAffinityTerm:
                 labelSelector:
                   matchLabels:
                     app.kubernetes.io/name: cnas-web
                     app.kubernetes.io/component: web
-                topologyKey: kubernetes.io/hostname
+                topologyKey: kubernetes.io/hostname  # Spread across different machines
       containers:
         - name: web
+          # Your PHP app container image (from Docker registry)
           image: maycherryaung98/cnas-php-mysql@sha256:1e460c60ed0029c8a42301e39a8c069f4e965665a2496cfb6bc3e6261bf52208
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: IfNotPresent  # Use local image if available, don't pull
           ports:
             - name: http
-              containerPort: 8080
+              containerPort: 8080  # PHP app listens on port 8080
           env:
+            # Pass database connection info to the PHP app
             - name: DB_HOST
               valueFrom:
-                configMapKeyRef:
+                configMapKeyRef:  # Where MySQL is running
                   name: cnas-app-config
                   key: DB_HOST
             - name: DB_PORT
               valueFrom:
-                configMapKeyRef:
+                configMapKeyRef:  # MySQL port
                   name: cnas-app-config
                   key: DB_PORT
             - name: DB_NAME
               valueFrom:
-                configMapKeyRef:
+                configMapKeyRef:  # Database name
                   name: cnas-app-config
                   key: DB_NAME
             - name: DB_USER
               valueFrom:
-                secretKeyRef:
+                secretKeyRef:  # Database username (sensitive)
                   name: cnas-db-secret
                   key: DB_USER
             - name: DB_PASSWORD
               valueFrom:
-                secretKeyRef:
+                secretKeyRef:  # Database password (sensitive)
                   name: cnas-db-secret
                   key: DB_PASSWORD
           readinessProbe:
+            # Check: is pod ready to serve traffic? (database connection working?)
             httpGet:
-              path: /health.php?deep=1
+              path: /health.php?deep=1  # Call this endpoint
               port: http
-            initialDelaySeconds: 15
-            periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 6
+            initialDelaySeconds: 15  # Wait 15 seconds before first check
+            periodSeconds: 10  # Check every 10 seconds
+            timeoutSeconds: 5  # Wait max 5 seconds for response
+            failureThreshold: 6  # After 6 failed checks, mark as not ready (don't send traffic)
           livenessProbe:
+            # Check: is pod still alive? (not frozen/stuck?)
             httpGet:
-              path: /health.php
+              path: /health.php  # Call this endpoint
               port: http
-            initialDelaySeconds: 30
-            periodSeconds: 20
-            timeoutSeconds: 5
-            failureThreshold: 3
+            initialDelaySeconds: 30  # Wait 30 seconds before first check (let it fully start)
+            periodSeconds: 20  # Check every 20 seconds
+            timeoutSeconds: 5  # Wait max 5 seconds for response
+            failureThreshold: 3  # After 3 failed checks, restart the pod
           resources:
             requests:
-              cpu: 100m
-              memory: 128Mi
+              # Kubernetes reserves this much (guaranteed)
+              cpu: 100m  # 100 millicores (1/10 of one CPU)
+              memory: 128Mi  # 128 megabytes
             limits:
-              cpu: 500m
-              memory: 256Mi
+              # Pod can't use more than this. HPA uses these requests to calculate CPU %
+              cpu: 500m  # Max 500 millicores
+              memory: 256Mi  # Max 256 megabytes
           securityContext:
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: false
+            # Security rules: limit what the app can do
+            allowPrivilegeEscalation: false  # Can't become root later
+            readOnlyRootFilesystem: false  # Filesystem is writable (app needs to write logs)
             capabilities:
               drop:
-                - ALL
+                - ALL  # Drop all dangerous Linux capabilities
 
