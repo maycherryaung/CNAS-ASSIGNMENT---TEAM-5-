@@ -1,35 +1,41 @@
 apiVersion: v1
-kind: ServiceAccount
+kind: ServiceAccount                           #creates a new identity for pipeline
 metadata:
-  name: cnas-deployer
+  name: cnas-deployer                          
   namespace: cnas
 ---
+
+#Least Privilege
+
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: cnas-deployer
   namespace: cnas
 rules:
+  - apiGroups: ["apps"]                       #apiGroups says which category a resource belongs to 
+    resources: ["deployments"]                #resources are components the role is allowed to interact with. deployment is a kubernetes component that manages running applications
+    verbs: ["get", "list", "watch", "patch", "update"]      #actions allowed
   - apiGroups: ["apps"]
-    resources: ["deployments"]
-    verbs: ["get", "list", "watch", "patch", "update"]
-  - apiGroups: ["apps"]
-    resources: ["replicasets"]
+    resources: ["replicasets"]               #manage the number of application copies running
     verbs: ["get", "list", "watch"]
-  - apiGroups: [""]
-    resources: ["pods"]
+  - apiGroups: [""]                          #core API group
+    resources: ["pods"]                      #running containers
     verbs: ["get", "list", "watch"]
 ---
+
+#The Connection
+
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: cnas-deployer
   namespace: cnas
-subjects:
+subjects:                                   #who is receiving the permissions
   - kind: ServiceAccount
     name: cnas-deployer
     namespace: cnas
-roleRef:
+roleRef:                                   #which permissions to apply
   kind: Role
   name: cnas-deployer
   apiGroup: rbac.authorization.k8s.io

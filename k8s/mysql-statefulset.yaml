@@ -1,5 +1,6 @@
 apiVersion: apps/v1
 kind: StatefulSet
+# StatefulSet = for apps with persistent data (databases). Like Deployment but each pod has stable identity and storage.
 metadata:
   name: cnas-mysql
   labels:
@@ -7,7 +8,7 @@ metadata:
     app.kubernetes.io/component: database
 spec:
   serviceName: cnas-mysql
-  replicas: 1
+  replicas: 1  # Only 1 MySQL pod. Databases can't easily have multiple copies writing to same data.
   selector:
     matchLabels:
       app.kubernetes.io/name: cnas-mysql
@@ -25,86 +26,96 @@ spec:
           type: RuntimeDefault
       containers:
         - name: mysql
-          image: mysql:8.4
-          imagePullPolicy: IfNotPresent
+          image: mysql:8.4  # MySQL version 8.4 container
+          imagePullPolicy: IfNotPresent  # Use local image if available, don't pull from registry
           ports:
             - name: mysql
-              containerPort: 3306
+              containerPort: 3306  # MySQL default port
           env:
+            # Pass config and passwords to MySQL so it knows what to set up
             - name: MYSQL_DATABASE
               valueFrom:
-                configMapKeyRef:
+                configMapKeyRef:  # Read database name from ConfigMap (public config)
                   name: cnas-app-config
                   key: DB_NAME
             - name: MYSQL_USER
               valueFrom:
-                secretKeyRef:
+                secretKeyRef:  # Read username from Secret (sensitive data)
                   name: cnas-db-secret
                   key: MYSQL_USER
             - name: MYSQL_PASSWORD
               valueFrom:
-                secretKeyRef:
+                secretKeyRef:  # Read password from Secret (sensitive data)
                   name: cnas-db-secret
                   key: MYSQL_PASSWORD
             - name: MYSQL_ROOT_PASSWORD
               valueFrom:
-                secretKeyRef:
+                secretKeyRef:  # Read root password from Secret (sensitive data)
                   name: cnas-db-secret
                   key: MYSQL_ROOT_PASSWORD
           readinessProbe:
+            # Check: is MySQL ready to accept connections? (can pod serve traffic?)
             exec:
               command:
                 - sh
                 - -c
                 - mysqladmin ping -h 127.0.0.1 -u root -p"${MYSQL_ROOT_PASSWORD}" --silent
-            initialDelaySeconds: 20
-            periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 6
+            initialDelaySeconds: 20  # Wait 20 seconds before first check (MySQL needs startup time)
+            periodSeconds: 10  # Check every 10 seconds
+            timeoutSeconds: 5  # Give MySQL 5 seconds to respond
+            failureThreshold: 6  # After 6 failed checks, mark pod as not ready
           livenessProbe:
+            # Check: is the pod still alive? (not stuck/frozen)
             exec:
               command:
                 - sh
                 - -c
                 - mysqladmin ping -h 127.0.0.1 -u root -p"${MYSQL_ROOT_PASSWORD}" --silent
-            initialDelaySeconds: 60
-            periodSeconds: 20
-            timeoutSeconds: 5
-            failureThreshold: 3
+            initialDelaySeconds: 60  # Wait 60 seconds before first check (let it fully start)
+            periodSeconds: 20  # Check every 20 seconds
+            timeoutSeconds: 5  # Give MySQL 5 seconds to respond
+            failureThreshold: 3  # After 3 failed checks, restart the pod
           resources:
             requests:
-              cpu: 250m
-              memory: 512Mi
+              # Kubernetes reserves this much for the pod (guaranteed to have it)
+              cpu: 250m  # 250 millicores (1/4 of one CPU)
+              memory: 512Mi  # 512 megabytes
             limits:
-              cpu: "1"
-              memory: 1Gi
+              # Pod can't use more than this. If it does, Kubernetes kills it.
+              cpu: "1"  # 1 CPU max
+              memory: 1Gi  # 1 gigabyte max
           securityContext:
-            runAsUser: 999
-            runAsGroup: 999
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: false
+            # Security rules: limit what MySQL can do
+            runAsUser: 999  # Run as non-root user (user ID 999, safer than root)
+            runAsGroup: 999  # Run as non-root group
+            allowPrivilegeEscalation: false  # Don't allow MySQL to become root later
+            readOnlyRootFilesystem: false  # Filesystem is writable (MySQL needs to write data)
             capabilities:
               drop:
-                - ALL
+                - ALL  # Drop all dangerous Linux capabilities (extra security)
           volumeMounts:
+            # Where to attach storage inside the pod
             - name: mysql-data
-              mountPath: /var/lib/mysql
+              mountPath: /var/lib/mysql  # MySQL stores database files here
             - name: mysql-initdb
-              mountPath: /docker-entrypoint-initdb.d
-              readOnly: true
+              mountPath: /docker-entrypoint-initdb.d  # Database setup scripts go here
+              readOnly: true  # Can only read, not modify
       volumes:
+        # Where storage comes from
         - name: mysql-initdb
           configMap:
+            # Database initialization scripts from ConfigMap
             name: cnas-mysql-initdb
   volumeClaimTemplates:
+    # Request persistent storage (will be created when pod starts - WaitForFirstConsumer)
     - metadata:
         name: mysql-data
         labels:
           app.kubernetes.io/name: cnas-mysql
       spec:
         accessModes:
-          - ReadWriteOnce
-        storageClassName: cnas-local-storage
+          - ReadWriteOnce  # Only one pod can read/write at a time (prevent data corruption)
+        storageClassName: cnas-local-storage  # Use local disk storage (not cloud)
         resources:
           requests:
-            storage: 2Gi
+            storage: 2Gi  # Need 2 gigabytes of storage

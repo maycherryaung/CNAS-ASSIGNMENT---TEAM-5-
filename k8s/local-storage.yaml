@@ -2,8 +2,8 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: cnas-local-storage
-provisioner: kubernetes.io/no-provisioner
-volumeBindingMode: WaitForFirstConsumer
+provisioner: kubernetes.io/no-provisioner     #tell Kubernetes not to provision cloud hard drives: use local drive
+volumeBindingMode: WaitForFirstConsumer       #wait for database application to start before connecting the storage (so they stay on the same physical machine)
 ---
 apiVersion: v1
 kind: PersistentVolume
@@ -16,12 +16,12 @@ spec:
   capacity:
     storage: 2Gi
   accessModes:
-    - ReadWriteOnce
-  persistentVolumeReclaimPolicy: Retain
-  storageClassName: cnas-local-storage
+    - ReadWriteOnce                          #only one node can read and write at a time (prevent data corruption)
+  persistentVolumeReclaimPolicy: Retain      #if database is deleted, retain data on physical disk
+  storageClassName: cnas-local-storage       #links volume and storage class
   local:
-    path: /mnt/cnas-mysql
-  nodeAffinity:
+    path: /mnt/cnas-mysql                    #directory inside the physical server/machine to store data 
+  nodeAffinity:                              #storage exists only in vm-childnode1, not on cloud or any shared data storage
     required:
       nodeSelectorTerms:
         - matchExpressions:

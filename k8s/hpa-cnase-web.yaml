@@ -1,0 +1,47 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: cnas-web
+  namespace: cnas
+  labels:
+    app.kubernetes.io/name: cnas-web
+    app.kubernetes.io/component: web
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: cnas-web
+  minReplicas: 3
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      selectPolicy: Max
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 60
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      selectPolicy: Max
+      policies:
+        - type: Percent
+          value: 50
+          periodSeconds: 60
+
+#The rules say "how fast to get there."
+#Example:
+#Without the rules, Kubernetes might add 1 pod every 60 seconds. So 1 → 2 → 3 → 4 → 5 → 6 = slow.
+#With these rules, you add 2 (or double). So 1 → 3 → 6 = faster.
+#Max = the ceiling.
+#Rules = the speed to climb to the ceiling.
