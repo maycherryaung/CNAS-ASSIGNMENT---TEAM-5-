@@ -1,0 +1,86 @@
+apiVersion: v1
+kind: ConfigMap
+# Grafana dashboard stored as ConfigMap. Grafana is a tool to visualize metrics (graphs, charts).
+# This file defines what charts appear on the dashboard.
+metadata:
+  name: cnas-command-center
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"  # Label tells Grafana to load this dashboard
+data:
+  cnas-command-center.json: |-
+    {
+      "annotations": { "list": [] },
+      "editable": true,
+      "graphTooltip": 1,
+      "panels": [
+        {
+          "id": 1, "type": "timeseries", "title": "HPA Scaling vs CPU Pressure",
+          "datasource": { "type": "prometheus", "uid": "cnas-prometheus" },
+          "targets": [{ "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"cnas\", container=\"web\"}[2m])) * 100", "refId": "A" }]
+        },
+        {
+          "id": 2, "type": "timeseries", "title": "Memory Consumption vs Hard Limits",
+          "datasource": { "type": "prometheus", "uid": "cnas-prometheus" },
+          "targets": [{ "expr": "sum(container_memory_working_set_bytes{namespace=\"cnas\", container=\"web\"})", "refId": "A" }]
+        },
+        {
+          "id": 3, "type": "timeseries", "title": "Pod Network Traffic Ingress/Egress",
+          "datasource": { "type": "prometheus", "uid": "cnas-prometheus" },
+          "targets": [{ "expr": "sum(rate(container_network_receive_bytes_total{namespace=\"cnas\", pod=~\"cnas-web.*\"}[2m]))", "refId": "A" }]
+        },
+        {
+          "id": 4, "type": "timeseries", "title": "Disk I/O Throughput Read/Write",
+          "datasource": { "type": "prometheus", "uid": "cnas-prometheus" },
+          "targets": [{ "expr": "sum(rate(node_disk_read_bytes_total[2m]))", "refId": "A" }]
+        },
+        {
+          "id": 5, "type": "logs", "title": "CNAS App Log Stream",
+          "datasource": { "type": "loki", "uid": "cnas-loki" },
+          "targets": [{ "expr": "{namespace=\"cnas\", app=\"cnas-web\"}", "refId": "A" }]
+        },
+        {
+          "id": 6, "type": "stat", "title": "Pod Self-Healing Events",
+          "datasource": { "type": "prometheus", "uid": "cnas-prometheus" },
+          "targets": [{ "expr": "sum(increase(kube_pod_container_status_restarts_total{namespace=\"cnas\",pod=~\"cnas-web-.*\",container=\"web\"}[5m]))", "refId": "A" }]
+        }
+      ],
+      "refresh": "10s",
+      "schemaVersion": 39,
+      "tags": ["cnas", "kubernetes", "observability"],
+      "time": { "from": "now-30m", "to": "now" },
+      "timezone": "browser",
+      "title": "CNAS Command Center",
+      "version": 1
+    }
+
+# Dashboard panels explained:
+# Panel 1: HPA Scaling vs CPU Pressure
+#   Shows CPU usage over time (what HPA watches to decide when to add/remove pods)
+#
+# Panel 2: Memory Consumption vs Hard Limits
+#   Shows memory usage (what VPA watches to adjust memory requests)
+#
+# Panel 3: Pod Network Traffic Ingress/Egress
+#   Shows incoming/outgoing network data from pods
+#
+# Panel 4: Disk I/O Throughput Read/Write
+#   Shows how much data being read/written to disk
+#
+# Panel 5: CNAS App Log Stream
+#   Shows live logs from PHP app (errors, warnings, info)
+#
+# Panel 6: Pod Self-Healing Events
+#   Shows how many times pods restarted (pod crashes/restarts)
+#
+# Data sources:
+#   - prometheus (cnas-prometheus): for metrics (CPU, memory, network, disk)
+#   - loki (cnas-loki): for logs (app output)
+#
+# Refresh: 10 seconds (update dashboard every 10 seconds)
+# Time range: last 30 minutes (shows data from now-30m to now)
+#
+# Purpose: Your "command center" to monitor the app
+#   - Check HPA scaling: look at CPU chart
+#   - Check VPA memory adjustments: look at memory chart
+#   - Find problems: check pod restarts and logs

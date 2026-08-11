@@ -1,24 +1,30 @@
+
+#defines the trigger that will run the workflow
+
 name: Secure CI/CD
 
 on:
   push:
     branches:
-      - main
+      - main                        #runs when new code is pushed to the main branch
   pull_request:
     branches:
-      - main
-  workflow_dispatch:
+      - main                        #runs when someone proposes changes to the main branch via a pull request               
+  workflow_dispatch:                #a user clicks a button to run manually
+
+#defines least privilege 
 
 permissions:
-  contents: read
-  packages: write
-  security-events: write
+  contents: read                    #read the code in the repository
+  packages: write                   #save packages to the package registry
+  security-events: write            #log security events
 
 env:
-  REGISTRY: ghcr.io
+  REGISTRY: ghcr.io                #use GitHub Container Registry to store the container image
 
 jobs:
-  validate-build-scan:
+  
+  validate-build-scan:             #first job 
     name: Validate, Build, and Scan
     runs-on: ubuntu-latest
 
@@ -32,16 +38,21 @@ jobs:
           php-version: "8.3"
           extensions: mysqli, pdo_mysql
           coverage: none
-
-      - name: PHP syntax check
+  
+    
+      #finds PHP files in the code and check for syntax errors(does not run the code)
+      - name: PHP syntax check             
         run: find . -maxdepth 1 -name '*.php' -print0 | xargs -0 -n1 php -l
 
-      - name: Docker Compose configuration check
+      #checks the Docker Compose configuration
+      - name: Docker Compose configuration check  #check the Docker Compose configuration
         run: docker compose config
 
+      #renders the Kubernetes manifests
       - name: Render Kubernetes manifests
         run: kubectl kustomize k8s > rendered-k8s.yaml
 
+      #uses kubeconform tool to validate the Kubernetes manifests
       - name: Validate Kubernetes manifests with kubeconform
         run: |
           docker run --rm -v "${{ github.workspace }}:/work" ghcr.io/yannh/kubeconform:latest \
@@ -53,6 +64,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      #builds the Docker image locally
       - name: Build Docker image locally
         uses: docker/build-push-action@v6
         with:
@@ -61,21 +73,22 @@ jobs:
           load: true
           tags: local/cnas-php-mysql:${{ github.sha }}
 
+      #scans the Docker image with Trivy
       - name: Scan Docker image with Trivy
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: local/cnas-php-mysql:${{ github.sha }}
           format: table
           vuln-type: os,library
-          severity: HIGH,CRITICAL
-          ignore-unfixed: true
-          exit-code: "1"
+          severity: HIGH,CRITICAL     #if HIGH or CRITICAL security flaws are found, the workflow will fail and stop.
+          ignore-unfixed: true        #ignore vulnerabilities that do not have a fix available yet.
+          exit-code: "1"           
 
-  push-image:
+  push-image: #This job requires the first job to start
     name: Push Image
     runs-on: ubuntu-latest
     needs: validate-build-scan
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'     #only happens when new code is pushed to the main branch
 
     steps:
       - name: Checkout
@@ -87,6 +100,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      #logs into Registry, builds final image and push. Tags code version number 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -101,9 +115,9 @@ jobs:
             -t "${IMAGE_REF}:latest" \
             .
 
-  deploy:
+  deploy:   #This job depends on push-image job
     name: Deploy to Kubernetes
-    runs-on: self-hosted
+    runs-on: self-hosted        #runs the automation on organization's secure network rather than on public servers 
     needs: push-image
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     environment: production
@@ -118,12 +132,16 @@ jobs:
       - name: Set up kubectl
         uses: azure/setup-kubectl@v4
 
+      #takes encrypted password provided by GitHub, decrypts it and saves it as a secure file
       - name: Configure kubeconfig from secret
         run: |
           mkdir -p "${HOME}/.kube"
           echo "${{ secrets.KUBE_CONFIG_DATA }}" | base64 -d -i > "${HOME}/.kube/config"
           chmod 600 "${HOME}/.kube/config"        
 
+     #uses kubectl to tell the Kubernetes cluster to find the currently running application
+     #and replace it with the new container image just uploaded,
+     #wait up to 180 seconds to confirm the new version started successfully without crashing
       - name: Deploy release image
         run: |
           kubectl -n cnas set image deployment/cnas-web web="${IMAGE_REF}:${GITHUB_SHA}"

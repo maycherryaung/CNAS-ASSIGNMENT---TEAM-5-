@@ -2,6 +2,7 @@ apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: cnas-web
+  namespace: cnas
   labels:
     app.kubernetes.io/name: cnas-web
     app.kubernetes.io/component: web

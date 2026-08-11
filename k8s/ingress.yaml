@@ -1,5 +1,5 @@
 apiVersion: networking.k8s.io/v1
-kind: Ingress
+kind: Ingress             #create an ingress resource (a networking rule to allow incoming external traffic)
 metadata:
   name: cnas-web
   namespace: cnas
@@ -8,10 +8,10 @@ metadata:
     app.kubernetes.io/component: gateway
   annotations:
     cert-manager.io/cluster-issuer: cnas-ca-issuer
-    nginx.ingress.kubernetes.io/limit-rps: "10"
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "30"
+    nginx.ingress.kubernetes.io/limit-rps: "10"       #10 requests per second
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "30"    #takes longer than 30 seconds to respond > cut connection > save server memory
     nginx.ingress.kubernetes.io/proxy-send-timeout: "30"
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"        #redirect to HTTPS
 spec:
   ingressClassName: nginx
   tls:
@@ -19,13 +19,13 @@ spec:
         - cnas.local
       secretName: cnas-web-tls
   rules:
-    - host: cnas.local
+    - host: cnas.local          #use localhost
       http:
         paths:
           - path: /
             pathType: Prefix
-            backend:
+            backend:            #traffic destination
               service:
-                name: cnas-web
+                name: cnas-web  #Kubernetes service name
                 port:
                   number: 80
