@@ -1,0 +1,429 @@
+CODE EXPLANATION
+Kubernetes Configuration Walkthrough
+
+================================================================================
+1. VPA (Vertical Pod Autoscaler) - cnas-web-vpa.yaml
+================================================================================
+
+What it does: Makes pods bigger or smaller by adjusting memory reservation.
+- Watches actual memory usage of your pods
+- If real usage doesn't match the reserved amount, it evicts the pod
+- Pod restarts with corrected memory request
+
+Key settings:
+- targetRef: points to cnas-web Deployment
+- updateMode: "Recreate" - deletes pods to apply changes (not live-resize)
+- controlledResources: [memory] - only touches memory, not CPU
+- controlledValues: RequestsOnly - changes requests but keeps limits fixed
+- minAllowed: 128Mi / maxAllowed: 192Mi - guardrails for what it can do
+
+Important note: VPA has no "trigger" you set. It watches your usage and decides by itself.
+Unlike HPA which has a 60% CPU rule, VPA internally decides based on observed usage patterns.
+
+VPA needs days of watching before it does anything - won't react live in a demo.
+
+
+================================================================================
+2. HPA (Horizontal Pod Autoscaler) - hpa.yaml and hpa-cnase-web.yaml
+================================================================================
+
+What it does: Adds or removes copies of pods based on CPU.
+
+Basic rule: Keep CPU around 60%. If CPU goes above 60%, add a pod.
+- minReplicas: 3 (always run at least 3 pods)
+- maxReplicas: 6 (never go above 6 pods)
+
+Behavior section controls HOW FAST to scale:
+
+SCALE UP (add pods when busy):
+- stabilizationWindowSeconds: 0 → don't wait, add immediately
+- Policies:
+  * Add 100% of current pods every 60 seconds, OR
+  * Add 2 more pods every 60 seconds
+- selectPolicy: Max → pick whichever adds MORE pods
+
+Example: 3 pods → add max(3 more, 2 more) = 3 more → total 6 pods
+
+Why two rules?
+- Rule 1 (doubling): For larger scales (2+ pods), scale proportionally
+- Rule 2 (add 2): For tiny scales (1 pod), don't grow too slowly
+
+SCALE DOWN (remove pods when quiet):
+- stabilizationWindowSeconds: 300 → wait 5 minutes (make sure traffic really dropped)
+- Policies:
+  * Remove 50% of current pods every 60 seconds, OR
+  * Remove 2 pods every 60 seconds
+- selectPolicy: Max → pick whichever removes FEWER pods
+
+This is conservative: add pods fast, remove pods slow.
+
+Note: hpa-cnase-web.yaml is a duplicate that's not in kustomization.yaml - it doesn't run.
+
+
+================================================================================
+3. Ingress - ingress.yaml
+================================================================================
+
+What it does: Routes external traffic to your app.
+
+Timeouts:
+- proxy-read-timeout: 30 → wait 30 seconds for backend to respond. If longer, close.
+- proxy-send-timeout: 30 → wait 30 seconds for backend to accept. If longer, close.
+Why? Hanging connections waste memory. Better to close them after 30 seconds.
+
+Routing rules:
+- ingressClassName: nginx → use nginx as the router
+- tls → enable HTTPS
+  * hosts: cnas.local → which domain to secure
+  * secretName: cnas-web-tls → certificate storage location
+- rules:
+  * host: cnas.local → only handle this domain
+  * path: / → all paths
+  * backend: cnas-web service on port 80 → where to send traffic
+
+Traffic flow: Browser → Ingress (nginx) → cnas-web Service → Pods → PHP App
+
+Certificate management:
+- cert-manager.io/cluster-issuer: cnas-ca-issuer
+- This tells cert-manager to automatically create and renew SSL certificates
+- No manual certificate setup needed
+
+
+================================================================================
+4. Kustomization - kustomization.yaml
+================================================================================
+
+What it does: Master file that applies all YAML files at once.
+
+Instead of: kubectl apply -f file1.yaml && kubectl apply -f file2.yaml ...
+You do: kubectl apply -k .
+
+What "apply" means: Tell Kubernetes to create or update things based on the YAML.
+- First apply: Kubernetes reads the file and creates resources
+- Second apply: Kubernetes checks if anything changed, updates if needed
+
+Kustomization features:
+- namespace: cnas → puts all resources in the cnas namespace (automatic)
+- commonLabels → adds the same label to every resource
+  * Makes resources easier to find and manage together
+- resources: list of all YAML files to apply
+
+Common files applied:
+- Namespace and config (namespace, configmap, secrets)
+- Database stuff (storage, MySQL service, StatefulSet)
+- Web app (ServiceAccount, Deployment, Service)
+- Networking & scaling (Ingress, HPA, VPA, Pod Disruption Budget)
+- Security (Network policies)
+
+
+================================================================================
+5. How It All Works Together
+================================================================================
+
+Deployment order (via Kustomization):
+1. Create namespace and config
+2. Create MySQL database
+3. Create web app (3 pods initially)
+4. Set up networking (Ingress routes traffic in)
+5. Set up scaling (HPA scales on CPU, VPA adjusts memory)
+6. Set up security (Network policies restrict traffic)
+
+Scaling interaction:
+- HPA (Horizontal) scales number of pods based on CPU
+- VPA (Vertical) scales memory size of each pod
+- They're split to avoid fighting: HPA controls CPU policy, VPA controls memory policy
+
+Traffic flow:
+1. User visits https://cnas.local
+2. nginx Ingress receives request
+3. Ingress routes to cnas-web Service (with 30-second timeouts)
+4. Service picks a pod (load balanced)
+5. Pod runs PHP app
+6. Response goes back
+
+Scaling example:
+- Traffic spikes → CPU hits 60%
+- HPA sees this, adds 2+ pods (within 5 minutes)
+- Daily memory usage stabilizes → VPA adjusts memory request after days of watching
+- Both controllers work together to keep the app performant and cost-efficient
+
+
+================================================================================
+6. MySQL Pod Location & Storage
+================================================================================
+
+Where is MySQL running?
+- Runs on node: vm-childnode1 (pinned to one specific machine)
+- Why? Storage is local (on that node's disk at /mnt/cnas-mysql)
+
+How does it stay on that node?
+- nodeAffinity in PersistentVolume says "storage only on vm-childnode1"
+- WaitForFirstConsumer ensures pod starts on same node as storage
+
+Comparison:
+- Web pods: can run on any node (3 copies, spread around)
+- MySQL pod: locked to vm-childnode1 (1 copy, data is stuck there)
+
+This is why databases are harder to scale than stateless apps — they can't move.
+
+
+================================================================================
+7. Storage - local-storage.yaml
+================================================================================
+
+StorageClass = template that says "what kind of storage do you want?"
+
+Your StorageClass (cnas-local-storage):
+- provisioner: kubernetes.io/no-provisioner → use local disk (not cloud storage)
+- volumeBindingMode: WaitForFirstConsumer → wait for pod before connecting storage
+  This keeps MySQL and its data on the same machine
+
+PersistentVolume = actual storage based on StorageClass recipe:
+- Size: 2Gi
+- Location: /mnt/cnas-mysql on disk
+- Node: vm-childnode1 only
+- accessModes: ReadWriteOnce → only one node can read/write at a time (prevent data corruption)
+- persistentVolumeReclaimPolicy: Retain → if database is deleted, keep the data on disk
+
+Chain:
+1. StorageClass = recipe ("local disk")
+2. PersistentVolume = actual storage ("2Gi at /mnt/cnas-mysql on vm-childnode1")
+3. PersistentVolumeClaim = pod saying "I need storage" (MySQL pod claims it)
+
+
+================================================================================
+8. ConfigMap - configmap.yaml
+================================================================================
+
+ConfigMap = storage for configuration data (not secrets)
+
+What it stores: database name, host, port, URLs, environment variables, etc.
+
+Why use ConfigMap?
+- Separate config from code (database name lives in ConfigMap, not hardcoded in app)
+- Easy to change (update ConfigMap, restart pod, new config is used)
+- Reusable (same container image in dev/test/prod — just different ConfigMaps)
+
+How pods use it:
+- Pods read values from ConfigMap and set them as environment variables
+- Example: MYSQL_DATABASE reads from cnas-app-config ConfigMap, key DB_NAME
+
+vs Secret:
+- ConfigMap = for non-sensitive config (database name, URLs)
+- Secret = for sensitive data (passwords, API keys) - encrypted
+
+
+================================================================================
+9. Secret - secret-template.yaml
+================================================================================
+
+Secret = storage for sensitive data (passwords, credentials, API keys)
+
+type: Opaque = generic secret with arbitrary data (can store anything)
+
+What it contains: username, password, root password (base64 encoded)
+
+Why base64?
+- Base64 is just obfuscation (not encryption)
+- Real security comes from RBAC (controlling who can read the secret)
+
+How pods use it:
+- Pods read values from Secret and set them as environment variables
+- Example: MYSQL_PASSWORD reads from cnas-db-secret Secret, key MYSQL_PASSWORD
+
+Other secret types exist:
+- Opaque (default) - store anything
+- kubernetes.io/service-account-token - for service account tokens
+- kubernetes.io/basic-auth - for username/password
+- tls - for certificates/keys
+
+
+================================================================================
+10. TLS Issuer - tls-issuer.yaml
+================================================================================
+
+This file sets up certificate issuers for HTTPS (SSL/TLS).
+
+Think of it as a chain of trust:
+
+Part 1: Self-signed issuer (root)
+- Creates a fake certificate authority that signs its own certificate
+- "I am my own authority"
+
+Part 2: CA certificate (intermediate)
+- Creates a Certificate Authority using the self-signed issuer
+- Stores it in cnas-ca-secret
+- This CA will sign other certificates
+
+Part 3: CA issuer (issuer)
+- Uses the CA certificate to issue new certificates
+- This is what ingress.yaml references: cert-manager.io/cluster-issuer: cnas-ca-issuer
+
+How it works:
+1. cnas-selfsigned creates a fake root certificate
+2. cnas-ca creates a CA using that root
+3. cnas-ca-issuer uses the CA to sign your app's certificate
+4. When ingress.yaml applies, cert-manager automatically creates HTTPS certificate for cnas.local
+
+Note:
+- This self-signed setup is fine for demos/testing
+- In production: Use a real CA like Let's Encrypt
+
+
+================================================================================
+11. Web Deployment - web-deployment.yaml
+================================================================================
+
+What it is: Deployment for stateless PHP app
+
+Replicas: 3 (start with 3 copies, HPA can scale from 3 to 6 based on CPU)
+
+Pod anti-affinity:
+- Try to spread 3 pods across different nodes (redundancy)
+- If only one node available, that's OK (prefer but don't require)
+
+Container:
+- Image: maycherryaung98/cnas-php-mysql (your PHP app)
+- Port: 8080 (where app listens)
+
+Database config (environment variables):
+- DB_HOST, DB_PORT, DB_NAME from ConfigMap (public config)
+- DB_USER, DB_PASSWORD from Secret (sensitive data)
+
+Health checks:
+- readinessProbe (/health.php?deep=1): is pod ready to serve traffic? (check every 10 sec)
+- livenessProbe (/health.php): is pod still alive? (check every 20 sec)
+
+Resources:
+- requests: 100m CPU, 128Mi memory (Kubernetes reserves this)
+- limits: 500m CPU, 256Mi memory (can't use more than this)
+- These are what HPA and VPA watch for scaling
+
+Security:
+- Run as non-root user (ID 1000)
+- Don't allow privilege escalation
+- Drop all dangerous Linux capabilities
+
+
+================================================================================
+12. Web Service - web-service.yaml
+================================================================================
+
+Service = stable name/address for your app pods
+
+What it does:
+- Internal traffic routing (inside cluster only)
+- Service listens on port 80 (HTTP)
+- Directs to pods running on containerPort 8080
+
+Do you need to change it for HTTPS?
+- No. This is internal traffic only (pod-to-pod, ingress-to-pod)
+
+HTTPS handling:
+- Ingress (external): has ssl-redirect: true (converts http to https)
+- Service (internal): stays HTTP (no HTTPS needed inside cluster)
+
+Flow:
+- User → browser → https (ingress handles redirect)
+- Ingress → http (to service/pods on port 80)
+- This is the standard architecture
+
+
+================================================================================
+13. ServiceAccount - web-serviceaccount.yaml
+================================================================================
+
+ServiceAccount = identity/permissions for the pod (like a user account)
+
+What it does:
+- Controls what the pod is allowed to do in Kubernetes
+- By default gives pod a token (credential) to talk to Kubernetes API
+
+Your setup:
+- automountServiceAccountToken: false
+- Don't automatically give pod any credentials
+
+Why?
+- PHP app doesn't need to talk to Kubernetes API
+- Safer. Even if hacked, app can't use Kubernetes API
+
+How it's used:
+- web-deployment.yaml references it: serviceAccountName: cnas-web
+- Pod runs with the cnas-web ServiceAccount (but with no credentials)
+
+Analogy:
+- ServiceAccount = a keycard for the pod
+- automountServiceAccountToken: false = the keycard is blank (no access)
+
+
+================================================================================
+14. Grafana Dashboard - grafana-dashboard-cm.yaml
+================================================================================
+
+This file = Grafana dashboard stored as ConfigMap
+
+Grafana = visualization tool (graphs and charts for metrics)
+
+Dashboard: "CNAS Command Center"
+
+6 panels (charts):
+1. HPA Scaling vs CPU Pressure - shows CPU usage (what HPA watches)
+2. Memory Consumption vs Hard Limits - shows memory usage (what VPA watches)
+3. Pod Network Traffic - incoming/outgoing network data
+4. Disk I/O Throughput - data read/written to disk
+5. CNAS App Log Stream - live logs from PHP app
+6. Pod Self-Healing Events - how many times pods restarted
+
+Data sources:
+- Prometheus (cnas-prometheus) - for metrics (CPU, memory, network, disk)
+- Loki (cnas-loki) - for logs (app output)
+
+Settings:
+- Refresh: 10 seconds (update every 10 seconds)
+- Time range: last 30 minutes (shows data from now-30m to now)
+
+Purpose: Your "command center" to monitor the app
+- Check HPA scaling: look at CPU chart
+- Check VPA memory adjustments: look at memory chart
+- Find problems: check pod restarts and logs
+
+
+================================================================================
+15. Monitoring Stack - kube-prometheus-stack-values.yaml
+================================================================================
+
+This file = configuration for entire monitoring stack (Prometheus, Grafana, Alerts)
+
+Components:
+
+Grafana:
+- Admin password: TODO_CHANGE_ME_LOCAL_DEMO_ONLY (must change before production)
+- Enable default dashboards
+- ClusterIP service (only accessible inside cluster)
+
+Prometheus:
+- Metrics collection and storage (gathers data from all pods/nodes)
+- retention: 7d (keep metrics for 7 days, then delete)
+- Reserve: 250m CPU, 512Mi memory
+- Limit: 1 CPU, 1Gi memory
+
+AlertManager:
+- Sends alerts/notifications when problems happen
+- Reserve: 100m CPU, 128Mi memory
+- Limit: 300m CPU, 256Mi memory
+
+kube-state-metrics:
+- Collect metrics about Kubernetes objects (pods, deployments, services)
+- enabled: true
+
+nodeExporter:
+- Collect metrics about nodes/machines (CPU, memory, disk, network)
+- enabled: true
+
+Summary:
+- Prometheus = collects metrics
+- Grafana = visualizes metrics (dashboards)
+- AlertManager = sends alerts
+- kube-state-metrics = Kubernetes object metrics
+- nodeExporter = node/machine metrics
+- Together = complete monitoring system for the cluster

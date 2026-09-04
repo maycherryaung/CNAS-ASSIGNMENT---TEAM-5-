@@ -132,7 +132,8 @@ jobs:
       - name: Set up kubectl
         uses: azure/setup-kubectl@v4
 
-      #takes encrypted password provided by GitHub, decrypts it and saves it as a secure file
+      #takes encrypted password provided by GitHu
+      b, decrypts it and saves it as a secure file
       - name: Configure kubeconfig from secret
         run: |
           mkdir -p "${HOME}/.kube"
