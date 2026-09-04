@@ -61,7 +61,7 @@ jobs:
             /work/rendered-k8s.yaml
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       #builds the Docker image locally
       - name: Build Docker image locally
@@ -97,7 +97,7 @@ jobs:
         run: echo "IMAGE_REF=${REGISTRY}/${GITHUB_REPOSITORY_OWNER,,}/cnas-php-mysql" >> "$GITHUB_ENV"
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       #logs into Registry, builds final image and push. Tags code version number 
       - name: Login to GitHub Container Registry
