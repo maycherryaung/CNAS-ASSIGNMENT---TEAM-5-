@@ -1,4 +1,3 @@
-
 #defines the trigger that will run the workflow
 
 name: Secure CI/CD
@@ -117,7 +116,7 @@ jobs:
 
   deploy:   #This job depends on push-image job
     name: Deploy to Kubernetes
-    runs-on: self-hosted        #runs the automation on organization's secure network rather than on public servers 
+    runs-on: ubuntu-latest        #runs on GitHub-hosted runner
     needs: push-image
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     environment: production
@@ -132,8 +131,7 @@ jobs:
       - name: Set up kubectl
         uses: azure/setup-kubectl@v4
 
-      #takes encrypted password provided by GitHu
-      b, decrypts it and saves it as a secure file
+      #takes encrypted password provided by GitHub, decrypts it and saves it as a secure file
       - name: Configure kubeconfig from secret
         run: |
           mkdir -p "${HOME}/.kube"
