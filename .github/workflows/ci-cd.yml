@@ -129,7 +129,7 @@ jobs:
         run: echo "IMAGE_REF=${REGISTRY}/${GITHUB_REPOSITORY_OWNER,,}/cnas-php-mysql" >> "$GITHUB_ENV"
 
       - name: Set up kubectl
-        uses: azure/setup-kubectl@v4
+        uses: azure/setup-kubectl@v5
 
       #takes encrypted password provided by GitHub, decrypts it and saves it as a secure file
       - name: Configure kubeconfig from secret
