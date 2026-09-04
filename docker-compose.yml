@@ -1,46 +1,61 @@
 name: cnas-assignment
 
 services:
+  # PHP web application container
   web:
     build: .
     image: cnas-php-mysql:local
+    # Wait for MySQL to be healthy before starting
     depends_on:
       mysql:
         condition: service_healthy
+    # Database connection settings
     environment:
       DB_HOST: mysql
       DB_PORT: "3306"
       DB_NAME: mydb
       DB_USER: cnas_user
       DB_PASSWORD: cnas_password
+    # Map port 8080 on container to 8080 on host
     ports:
       - "8080:8080"
+    # Monitor app health: check every 30s, wait 5s for response, skip first 20s, restart after 3 failures
     healthcheck:
       test: ["CMD-SHELL", "php -r \"exit(@file_get_contents('http://127.0.0.1:8080/health.php') === false ? 1 : 0);\""]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 20s
+    # Restart container automatically unless manually stopped
     restart: unless-stopped
 
+  # MySQL database container
   mysql:
     image: mysql:8.4
+    # Set database credentials
     environment:
       MYSQL_ROOT_PASSWORD: rootpass_dev_only
       MYSQL_DATABASE: mydb
       MYSQL_USER: cnas_user
       MYSQL_PASSWORD: cnas_password
+    # Store database data and initialize with users.sql
     volumes:
+      # Persist MySQL data across container restarts
       - mysql_data:/var/lib/mysql
+      # Load initial data on first startup (read-only)
       - ./users.sql:/docker-entrypoint-initdb.d/01-users.sql:ro
+    # Monitor database health: check every 10s, wait 5s for response, skip first 30s, restart after 10 failures
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
       interval: 10s
       timeout: 5s
       retries: 10
       start_period: 30s
+    # Restart container automatically unless manually stopped
     restart: unless-stopped
 
+# Named volumes used by services
 volumes:
+  # Persists MySQL database files across container restarts
   mysql_data:
 

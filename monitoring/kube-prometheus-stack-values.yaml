@@ -1,6 +1,6 @@
 # Grafana = visualization tool (dashboard to see metrics as charts)
 grafana:
-  adminPassword: TODO_CHANGE_ME_LOCAL_DEMO_ONLY  # Change this before production!
+  adminPassword: adminPassword  
   defaultDashboardsEnabled: true  # Load pre-made dashboards
   service:
     type: ClusterIP  # Only accessible inside cluster (not from outside)

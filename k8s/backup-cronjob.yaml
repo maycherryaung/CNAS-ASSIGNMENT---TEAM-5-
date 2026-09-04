@@ -1,21 +1,23 @@
+# PersistentVolume: Allocate storage space on the server for backup files
 apiVersion: v1
 kind: PersistentVolume
 metadata:
   name: cnas-backup-pv
 spec:
-  capacity: { storage: 1Gi }
-  accessModes: [ReadWriteOnce]
-  persistentVolumeReclaimPolicy: Retain
+  capacity: { storage: 1Gi }  # 1 gigabyte of storage
+  accessModes: [ReadWriteOnce]  # Only one pod can read/write at a time
+  persistentVolumeReclaimPolicy: Retain  # Keep backup files even if PVC is deleted
   storageClassName: cnas-local-storage
-  local: { path: /mnt/cnas-backup }
+  local: { path: /mnt/cnas-backup }  # Store backups here on the server's hard drive
   nodeAffinity:
     required:
       nodeSelectorTerms:
         - matchExpressions:
             - key: kubernetes.io/hostname
               operator: In
-              values: [vm-childnode1]
+              values: [vm-childnode1]  # Always use this specific server node
 ---
+# PersistentVolumeClaim: Request access to the storage space for the backup cronjob
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -24,8 +26,9 @@ metadata:
 spec:
   accessModes: [ReadWriteOnce]
   storageClassName: cnas-local-storage
-  resources: { requests: { storage: 1Gi } }
+  resources: { requests: { storage: 1Gi } }  # Request 1GB from the PersistentVolume
 ---
+# NetworkPolicy: Restrict what the backup pod can communicate with (security)
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -34,46 +37,48 @@ metadata:
 spec:
   podSelector:
     matchLabels: { app.kubernetes.io/name: cnas-backup }
-  policyTypes: [Egress]
+  policyTypes: [Egress]  # Control outgoing traffic from backup pod
   egress:
-    - to:
+    - to:  # Allow connection to MySQL database
         - podSelector:
             matchLabels: { app.kubernetes.io/name: cnas-mysql }
       ports:
-        - { protocol: TCP, port: 3306 }
-    - ports:
-        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 3306 }  # MySQL port
+    - ports:  # Allow DNS lookups
+        - { protocol: UDP, port: 53 }  # DNS port
 ---
+# CronJob: Scheduled backup job that runs at 2 AM every day
 apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: cnas-mysql-backup
   namespace: cnas
 spec:
-  schedule: "0 2 * * *"
-  successfulJobsHistoryLimit: 3
-  failedJobsHistoryLimit: 3
+  schedule: "0 2 * * *"  # Run at 2 AM every day (0 hour, 2 minutes, every day/month/week)
+  successfulJobsHistoryLimit: 3  # Keep records of last 3 successful backup runs
+  failedJobsHistoryLimit: 3  # Keep records of last 3 failed backup attempts
   jobTemplate:
     spec:
-      backoffLimit: 2
+      backoffLimit: 2  # Retry up to 2 times if backup fails
       template:
         metadata:
           labels: { app.kubernetes.io/name: cnas-backup }
         spec:
-          restartPolicy: OnFailure
-          nodeSelector: { kubernetes.io/hostname: vm-childnode1 }
+          restartPolicy: OnFailure  # Restart pod if backup fails
+          nodeSelector: { kubernetes.io/hostname: vm-childnode1 }  # Run on this server only
           securityContext:
-            runAsNonRoot: true
-            runAsUser: 999
+            runAsNonRoot: true  # Don't run as root (user ID 0)
+            runAsUser: 999  # Run as non-root user 999 (safer)
             runAsGroup: 999
             seccompProfile: { type: RuntimeDefault }
           containers:
             - name: backup
-              image: mysql:8.4
+              image: mysql:8.4  # Use MySQL container to run mysqldump
               securityContext:
-                allowPrivilegeEscalation: false
-                capabilities: { drop: [ALL] }
+                allowPrivilegeEscalation: false  # Can't gain higher privileges
+                capabilities: { drop: [ALL] }  # Remove all Linux capabilities
               env:
+                # Get database credentials from Kubernetes secret (not hardcoded)
                 - name: DB_USER
                   valueFrom: { secretKeyRef: { name: cnas-db-secret, key: DB_USER } }
                 - name: DB_PASSWORD
@@ -81,15 +86,18 @@ spec:
               command: ["/bin/sh", "-c"]
               args:
                 - |
-                  set -e
+                  set -e  # Exit if any command fails
+                  # Create filename with date/time: mydb-20260811-020000.sql.gz
                   F=/backup/mydb-$(date +%Y%m%d-%H%M%S).sql.gz
+                  # Export database and compress with gzip
                   mysqldump -h cnas-mysql -u"$DB_USER" -p"$DB_PASSWORD" \
                     --single-transaction --no-tablespaces mydb | gzip > "$F"
                   echo "backup written: $F"
-                  ls -lh /backup
+                  ls -lh /backup  # List all backups to see storage usage
+                  # Delete backups older than 7 days to save storage space
                   find /backup -name '*.sql.gz' -mtime +7 -delete
               volumeMounts:
-                - { name: backup, mountPath: /backup }
+                - { name: backup, mountPath: /backup }  # Mount storage to /backup folder
           volumes:
             - name: backup
-              persistentVolumeClaim: { claimName: cnas-backup-pvc }
+              persistentVolumeClaim: { claimName: cnas-backup-pvc }  # Use storage from PVC
