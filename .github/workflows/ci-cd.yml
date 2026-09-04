@@ -30,7 +30,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -92,7 +92,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Prepare lowercase image name
         run: echo "IMAGE_REF=${REGISTRY}/${GITHUB_REPOSITORY_OWNER,,}/cnas-php-mysql" >> "$GITHUB_ENV"
@@ -124,7 +124,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Prepare lowercase image name
         run: echo "IMAGE_REF=${REGISTRY}/${GITHUB_REPOSITORY_OWNER,,}/cnas-php-mysql" >> "$GITHUB_ENV"
