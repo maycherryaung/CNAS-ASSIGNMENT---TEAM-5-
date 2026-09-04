@@ -1,5 +1,5 @@
 # Start with PHP 8.3 and Apache pre-installed
-FROM php:8.3-apache
+FROM php:8.5-apache
 
 # Update system packages for security
 RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
